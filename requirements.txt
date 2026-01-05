@@ -3,9 +3,6 @@ icalendar
 python-dotenv
 python-dateutil
 requests
-google-cloud-aiplatform[adk,agent_engines]==1.110.0
-pydantic
-cloudpickle
+google-adk==1.21.0
 icalendar
 requests
-python-dateutil

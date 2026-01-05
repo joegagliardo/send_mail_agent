@@ -1,16 +1,18 @@
 import os
-import datetime
-import base64
-import requests
-from dateutil import parser 
-from icalendar import Calendar, Event
-from google.cloud import secretmanager
-from google.cloud import aiplatform
+# import datetime
+# import base64
+# import requests
+# from dateutil import parser 
+# from icalendar import Calendar, Event
+# from google.cloud import secretmanager
+# from google.cloud import aiplatform
 
 from dotenv import load_dotenv
-from google.adk.agents import Agent, BaseAgent
-from google.adk.models.google_llm import Gemini
-from pydantic import Field # Add this import
+
+# from google.adk.agents import Agent, BaseAgent
+# from google.adk.models.google_llm import Gemini
+# from pydantic import Field # Add this import
+from google.adk.agents import Agent
 from google.adk.tools import VertexAiSearchTool
 
 # --- Load Environment Variables ---
@@ -262,3 +264,7 @@ root_agent = Agent(
 # adk deploy agent_engine send_mail \
 # --display_name "Send mail agent 1.0" \
 # --staging_bucket gs://qwiklabs-gcp-01-3bb38adc87a2-agent-engine
+
+# old requirements
+# google-cloud-aiplatform[adk,agent_engines]==1.110.0
+# pydantic
