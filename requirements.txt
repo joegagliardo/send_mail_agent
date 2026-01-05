@@ -1,8 +1,3 @@
-# google-cloud-aiplatform>=1.50.0
-# google-cloud-secret-manager>=2.20.0
-# requests>=2.31.0
-# cloudpickle>=3.0.0
-# python-dateutil
 google-cloud-secret-manager
 icalendar
 python-dotenv
@@ -11,4 +6,6 @@ requests
 google-cloud-aiplatform[adk,agent_engines]==1.110.0
 pydantic
 cloudpickle
-
+icalendar
+requests
+python-dateutil

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from google.adk.agents import Agent, BaseAgent
 from google.adk.models.google_llm import Gemini
 from pydantic import Field # Add this import
+from google.adk.tools import VertexAiSearchTool
 
 # --- Load Environment Variables ---
 # This looks for a .env file in the same directory
@@ -24,6 +25,9 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 MODEL_NAME = os.getenv("MODEL", "gemini-2.5-flash")
+DATASTORE_ID = os.getenv("DATASTORE_ID")
+# DATASTORE_ID = "insurance-datastore"
+DATASTORE_PATH = f"projects/{PROJECT_ID}/locations/global/collections/default_collection/dataStores/{DATASTORE_ID}"
 
 # 1. Define the model explicitly with the correct project/location
 # llm = Gemini(
@@ -34,6 +38,24 @@ MODEL_NAME = os.getenv("MODEL", "gemini-2.5-flash")
 # )
 
 # --- Tools ---
+
+def get_date(x_days_from_today:int):
+    """
+    Retrieves a date for today or a day relative to today.
+
+    Args:
+        x_days_from_today (int): how many days from today? (use 0 for today)
+
+    Returns:
+        A dict with the date in a formal writing format. For example:
+        {"date": "Wednesday, May 7, 2025"}
+    """
+    from datetime import datetime, timedelta
+
+    target_date = datetime.today() + timedelta(days=x_days_from_today)
+    date_string = target_date.strftime("%A, %B %d, %Y")
+
+    return {"date": date_string}
 
 def create_calendar_event(event_name: str, date_str: str) -> dict:
     """Generates an RFC-compliant ICS file and returns the base64 content."""
@@ -66,7 +88,7 @@ def create_calendar_event(event_name: str, date_str: str) -> dict:
     }
 
 def send_email(recipient_email: str, subject: str, body_html: str, 
-               attachment_content: str = None, attachment_name: str = "event.ics") -> dict:
+               attachment_content: str = '', attachment_name: str = "event.ics") -> dict:
     """Sends an email via Brevo with the corrected attachment structure."""
     import os
     import requests
@@ -98,18 +120,27 @@ def send_email(recipient_email: str, subject: str, body_html: str,
     resp = requests.post(url, json=payload, headers=headers)
     return resp.json() if resp.status_code < 400 else {"error": resp.text}
 
+vertex_search_tool = VertexAiSearchTool(
+    data_store_id=DATASTORE_PATH,
+    bypass_multi_tools_limit=True
+)
 
 root_agent = Agent(
     name="root_agent",
     description="Sends and email",
     model=os.getenv("MODEL", "gemini-2.5-flash"),
-    instruction="""            You are a precise assistant. Follow these steps exactly:
-            1. If the user mentions a date/reminder, you MUST first call 'create_calendar_event'.
-            2. Once you receive the 'attachment_content' from that tool, you MUST then call 'send_email'.
-            3. Pass the 'attachment_content' and 'attachment_name' from the first tool into the 'send_email' tool.
-            4. Only tell the user "The email has been sent" AFTER you have received a successful response from the 'send_email' tool.
+    instruction="""
+    You are an insurance assistant. Your goal is to help users find policy expiration dates
+    and set reminders.
+    1. ALWAYS call 'VertexAiSearchTool' first to retrieve the data.
+    2. DO NOT claim you lack access to policy information.
+    3. If the user mentions a date/reminder or you find one in the search results, you MUST first call 'create_calendar_event'.
+    4. Once you receive the 'attachment_content' from that tool, you MUST then call 'send_email'.
+    5. Pass the 'attachment_content' and 'attachment_name' from the first tool into the 'send_email' tool.
+    6. Only tell the user "The email has been sent" AFTER you have received a successful response from the 'send_email' tool.
+    7. Show the curl statement that would be called from a terminal that send_mail function would make as part of the output if the prompt asks for the debugging information.
     """,
-    tools=[create_calendar_event, send_email]
+    tools=[vertex_search_tool, send_email, create_calendar_event]
     )
 
 
