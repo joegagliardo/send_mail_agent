@@ -26,12 +26,12 @@ LOCATION = os.getenv("GOOGLE_CLOUD_LOCATION", "us-central1")
 MODEL_NAME = os.getenv("MODEL", "gemini-2.5-flash")
 
 # 1. Define the model explicitly with the correct project/location
-llm = Gemini(
-    model="gemini-2.5-flash",
-    vertexai=True,
-    project="qwiklabs-gcp-01-3bb38adc87a2",
-    location="us-central1"
-)
+# llm = Gemini(
+#     model="gemini-2.5-flash",
+#     vertexai=True,
+#     project="qwiklabs-gcp-01-3bb38adc87a2",
+#     location="us-central1"
+# )
 
 # --- Tools ---
 
@@ -98,116 +98,136 @@ def send_email(recipient_email: str, subject: str, body_html: str,
     resp = requests.post(url, json=payload, headers=headers)
     return resp.json() if resp.status_code < 400 else {"error": resp.text}
 
-class CalendarRootAgent(BaseAgent):
-    """
-    Custom Agent class for 2026 ADK. 
-    Attributes must be declared as fields for Pydantic validation.
-    """
-    # 1. Declare fields here so Pydantic recognizes them
-    model_name: str
-    project: str
-    location: str
-    executor: Agent = Field(default=None, exclude=True) # exclude=True keeps it out of serialization
 
-    def __init__(self, model_name: str, project: str, location: str, name: str = "calendar_root"):
-        # 2. Pass values to super().__init__ as keyword arguments
-        super().__init__(
-            name=name, 
-            model_name=model_name, 
-            project=project, 
-            location=location
-        )
-
-    def set_up(self):
-        """Initializes the inner LLM using the validated fields."""
-        from google.adk.models.google_llm import Gemini
-        import google.adk
-        
-        llm = Gemini(
-            model=self.model_name,
-            vertexai=True,
-            project=self.project,
-            location=self.location
-        )
-        
-        self.executor = Agent(
-            name=self.name,
-            model=llm,
-            instruction="""
-            You are a precise assistant. Follow these steps exactly:
+root_agent = Agent(
+    name="root_agent",
+    description="Sends and email",
+    model=os.getenv("MODEL", "gemini-2.5-flash"),
+    instruction="""            You are a precise assistant. Follow these steps exactly:
             1. If the user mentions a date/reminder, you MUST first call 'create_calendar_event'.
             2. Once you receive the 'attachment_content' from that tool, you MUST then call 'send_email'.
             3. Pass the 'attachment_content' and 'attachment_name' from the first tool into the 'send_email' tool.
             4. Only tell the user "The email has been sent" AFTER you have received a successful response from the 'send_email' tool.
-            """,
-            tools=[create_calendar_event, send_email],
-        )
-
-    async def _run_async_impl(self, ctx):
-        # Transfer the stream from the executor to the runner
-        async for event in self.executor.run_async(ctx):
-            yield event
+    """,
+    tools=[create_calendar_event, send_email]
+    )
 
 
-class ReasoningEngineWrapper:
-    def __init__(self, model_name: str, project: str, location: str):
-        self.model_name = model_name
-        self.project = project
-        self.location = location
+# class CalendarRootAgent(BaseAgent):
+#     """
+#     Custom Agent class for 2026 ADK. 
+#     Attributes must be declared as fields for Pydantic validation.
+#     """
+#     # 1. Declare fields here so Pydantic recognizes them
+#     model_name: str
+#     project: str
+#     location: str
+#     executor: Agent = Field(default=None, exclude=True) # exclude=True keeps it out of serialization
 
-    def set_up(self):
-        # Imports inside set_up prevent pickling errors
-        from google.adk.agents import Agent
-        from google.adk.models.google_llm import Gemini
+#     def __init__(self, model_name: str, project: str, location: str, name: str = "calendar_root"):
+#         # 2. Pass values to super().__init__ as keyword arguments
+#         super().__init__(
+#             name=name, 
+#             model_name=model_name, 
+#             project=project, 
+#             location=location
+#         )
+
+#     def set_up(self):
+#         """Initializes the inner LLM using the validated fields."""
+#         from google.adk.models.google_llm import Gemini
+#         import google.adk
         
-        llm = Gemini(
-            model=self.model_name,
-            vertexai=True,
-            project=self.project,
-            location=self.location
-        )
-        self.executor = Agent(
-            name="calendar_root",
-            model=llm,
-            instruction="...",
-            tools=[create_calendar_event, send_email],
-        )
+#         llm = Gemini(
+#             model=self.model_name,
+#             vertexai=True,
+#             project=self.project,
+#             location=self.location
+#         )
+        
+#         self.executor = Agent(
+#             name=self.name,
+#             model=llm,
+#             instruction="""
+#             You are a precise assistant. Follow these steps exactly:
+#             1. If the user mentions a date/reminder, you MUST first call 'create_calendar_event'.
+#             2. Once you receive the 'attachment_content' from that tool, you MUST then call 'send_email'.
+#             3. Pass the 'attachment_content' and 'attachment_name' from the first tool into the 'send_email' tool.
+#             4. Only tell the user "The email has been sent" AFTER you have received a successful response from the 'send_email' tool.
+#             """,
+#             tools=[create_calendar_event, send_email],
+#         )
 
-    def query(self, input: str):
-        # Vertex AI expects 'input' as a kwarg usually, 
-        # but your wrapper method handles the mapping.
-        return self.executor.run(input)
+#     async def _run_async_impl(self, ctx):
+#         # Transfer the stream from the executor to the runner
+#         async for event in self.executor.run_async(ctx):
+#             yield event
 
-# --- Export for Deployment ---
+
+# class ReasoningEngineWrapper:
+#     def __init__(self, model_name: str, project: str, location: str):
+#         self.model_name = model_name
+#         self.project = project
+#         self.location = location
+
+#     def set_up(self):
+#         # Imports inside set_up prevent pickling errors
+#         from google.adk.agents import Agent
+#         from google.adk.models.google_llm import Gemini
+        
+#         llm = Gemini(
+#             model=self.model_name,
+#             vertexai=True,
+#             project=self.project,
+#             location=self.location
+#         )
+#         self.executor = Agent(
+#             name="calendar_root",
+#             model=llm,
+#             instruction="...",
+#             tools=[create_calendar_event, send_email],
+#         )
+
+#     def query(self, input: str):
+#         # Vertex AI expects 'input' as a kwarg usually, 
+#         # but your wrapper method handles the mapping.
+#         return self.executor.run(input)
+
+# # --- Export for Deployment ---
+
+# # def get_agent():
+# #     """Function called by deploy.py."""
+# #     return ReasoningEngineWrapper(
+# #         model_name="gemini-2.5-flash",
+# #         project="qwiklabs-gcp-01-3bb38adc87a2",
+# #         location="us-central1"
+# #     )
+
 
 # def get_agent():
-#     """Function called by deploy.py."""
-#     return ReasoningEngineWrapper(
+#     # Define the core agent logic
+#     from vertexai import agent_engines
+#     llm = Gemini(model="gemini-2.5-flash", vertexai=True)
+#     root_agent = Agent(
+#         name="calendar_root",
+#         model=llm,
+#         tools=[create_calendar_event, send_email],
+#         instruction="Your instructions here..."
+#     )
+    
+#     # Wrap it in AdkApp for better serialization
+#     return agent_engines.AdkApp(agent=root_agent)
+
+# if __name__ == "__main__":
+#     # Compatibility for ADK Web tools that look for root_agent
+#     root_agent = CalendarRootAgent(
 #         model_name="gemini-2.5-flash",
 #         project="qwiklabs-gcp-01-3bb38adc87a2",
 #         location="us-central1"
 #     )
+#     root_agent.set_up()
 
 
-def get_agent():
-    # Define the core agent logic
-    from vertexai import agent_engines
-    llm = Gemini(model="gemini-2.5-flash", vertexai=True)
-    root_agent = Agent(
-        name="calendar_root",
-        model=llm,
-        tools=[create_calendar_event, send_email],
-        instruction="Your instructions here..."
-    )
-    
-    # Wrap it in AdkApp for better serialization
-    return agent_engines.AdkApp(agent=root_agent)
-
-if __name__ == "__main__":
-    # Compatibility for ADK Web tools that look for root_agent
-    root_agent = CalendarRootAgent(
-        model_name="gemini-2.5-flash",
-        project="qwiklabs-gcp-01-3bb38adc87a2",
-        location="us-central1"
-    )
-    root_agent.set_up()
+# adk deploy agent_engine send_mail \
+# --display_name "Send mail agent 1.0" \
+# --staging_bucket gs://qwiklabs-gcp-01-3bb38adc87a2-agent-engine

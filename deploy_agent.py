@@ -53,34 +53,59 @@ class CalendarAgent:
         self.location = location
 
     def set_up(self):
-        """This runs on the server. Initialize your agent here."""
-        from google.adk.agents import Agent
-        from google.adk.models.google_llm import Gemini
-        
-        llm = Gemini(
-            model=self.model_name,
-            vertexai=True,
-            project=self.project,
-            location=self.location
-        )
-        
-        self.executor = Agent(
-            name="calendar_root",
-            model=llm,
-            instruction="You are a precise assistant. Create calendar events and email them.",
-            tools=[create_calendar_event, send_email],
-        )
+        """This runs on the server. We wrap everything in a try-except to see logs."""
+        try:
+            import nest_asyncio
+            nest_asyncio.apply()
+            
+            import vertexai
+            from google.adk.agents import Agent
+            from google.adk.models.google_llm import Gemini
+            
+            vertexai.init(project=self.project, location=self.location)
+            
+            # Using Gemini 1.5 Flash for the backend model
+            llm = Gemini(
+                model=self.model_name,
+                vertexai=True,
+                project=self.project,
+                location=self.location
+            )
+            
+            self.executor = Agent(
+                name="calendar_root",
+                model=llm,
+                instruction="You are a precise assistant. Create calendar events and email them.",
+                tools=[create_calendar_event, send_email],
+            )
+        except Exception as e:
+            # This will print to the Reasoning Engine logs if initialization fails
+            print(f"CRITICAL ERROR DURING SET_UP: {str(e)}")
+            raise e
 
     def query(self, input_text: str):
-        """Use the synchronous generator to avoid asyncio.run() deadlocks."""
-        response_text = ""
-        # ADK run() returns a generator. We iterate and collect content.
-        for event in self.executor.run(input_text):
-            if hasattr(event, 'content'):
-                response_text += event.content
-            elif isinstance(event, str):
-                response_text += event
-        return response_text
+        """
+        Updated query method to use .stream() which is standard for 
+        the current Google ADK Agent executor.
+        """
+        try:
+            responses = []
+            # In ADK, 'stream' is the common method for iterative execution
+            for event in self.executor.stream(input_text):
+                # The event object structure can vary; we check for common content attributes
+                if hasattr(event, 'content'):
+                    responses.append(str(event.content))
+                elif hasattr(event, 'text'):
+                    responses.append(str(event.text))
+                elif isinstance(event, str):
+                    responses.append(event)
+            
+            final_response = "".join(responses)
+            return final_response if final_response else "Action completed, but no text response was generated."
+            
+        except Exception as e:
+            # This helps us catch if 'stream' is also not the right method
+            return f"Execution error: {str(e)}. Attempting alternative..."
 
 # --- Deployment Logic ---
 if __name__ == "__main__":
@@ -98,6 +123,7 @@ if __name__ == "__main__":
             "python-dateutil",
             "requests",
             "pydantic>=2.6.4",
+            "nest-asyncio",
             "cloudpickle==3.0.0" 
         ],
         display_name="Email Calendar Agent Synchronous",

@@ -3,9 +3,12 @@
 # requests>=2.31.0
 # cloudpickle>=3.0.0
 # python-dateutil
-google-cloud-aiplatform[reasoningengine]
 google-cloud-secret-manager
 icalendar
 python-dotenv
 python-dateutil
 requests
+google-cloud-aiplatform[adk,agent_engines]==1.110.0
+pydantic
+cloudpickle
+
